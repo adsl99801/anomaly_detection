@@ -8,7 +8,8 @@ conda activate myenv
 conda install -c conda-forge psycopg2
 conda install pandas numpy scikit-learn matplotlib
 conda install sqlalchemy 
-conda install -c conda-forge mplcursors
+# conda install -c conda-forge mplcursors
+conda install -c plotly plotly
 
 # podman machine init
 # podman machine start

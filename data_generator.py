@@ -1,83 +1,83 @@
+import psycopg2
+import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import sqlite3
-import psycopg2
-
-def create_sample_db(db_type='sqlite', db_config=None):
+import json
+def create_sample_db(db_config):
     """
-    創建模擬資料庫並生成數據
-    :param db_type: 'sqlite' 或 'postgres'
-    :param db_config: PostgreSQL 連線配置（字典），僅在 db_type='postgres' 時需要
+    創建 PostgreSQL 資料庫並生成模擬數據
+    :param db_config: PostgreSQL 連線配置（字典）
     :return: 資料庫連線物件
     """
-    if db_type == 'sqlite':
-        conn = sqlite3.connect(':memory:')
-        # SQLite 使用 INTEGER PRIMARY KEY AUTOINCREMENT
-        create_table_query = '''
-            CREATE TABLE transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trans_date TEXT,
-                amount REAL
-            )
-        '''
-    elif db_type == 'postgres':
-        if not db_config:
-            raise ValueError("PostgreSQL 需要提供 db_config")
-        conn = psycopg2.connect(**db_config)
-        # PostgreSQL 使用 SERIAL 實現自動遞增
-        create_table_query = '''
-            CREATE TABLE IF NOT EXISTS transactions (
-                id SERIAL PRIMARY KEY,
-                trans_date TEXT,
-                amount REAL
-            )
-        '''
-    else:
-        raise ValueError("僅支援 'sqlite' 或 'postgres'")
+    # 連接到 PostgreSQL
+    conn = psycopg2.connect(**db_config)
+    cursor = conn.cursor()
 
-    # 創建表
-    if db_type == 'sqlite':
-        conn.execute(create_table_query)
-    elif db_type == 'postgres':
-        with conn.cursor() as cur:
-            cur.execute(create_table_query)
-        conn.commit()
+    # 建立 transactions 表（若不存在）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id SERIAL PRIMARY KEY,
+            trans_date TEXT,
+            amount REAL,
+            customer_id INTEGER,
+            merchant_id INTEGER,
+            payment_method TEXT,
+            transaction_type TEXT,
+            currency TEXT,
+            location TEXT,
+            status TEXT,
+            credit_limit REAL,
+            installment_plan TEXT,
+            fraud_flag INTEGER
+        )
+    ''')
 
     # 生成模擬數據
-    np.random.seed(42)
+    n_transactions = 1000
+    base_date = datetime(2025, 3, 8)
+    customers = np.random.randint(1, 101, n_transactions).tolist()  # 轉為 Python 列表
+    merchants = np.random.randint(1, 51, n_transactions).tolist()   # 轉為 Python 列表
+    amounts = np.random.uniform(10, 10000, n_transactions).round(2).tolist()  # 轉為 Python 列表
+    payment_methods = np.random.choice(['credit_card', 'debit_card', 'cash'], n_transactions).tolist()
+    transaction_types = np.random.choice(['purchase', 'refund', 'transfer'], n_transactions).tolist()
+    currencies = np.random.choice(['TWD', 'USD', 'EUR'], n_transactions).tolist()
+    locations = np.random.choice(['Taipei', 'New York', 'London', 'Tokyo'], n_transactions).tolist()
+    statuses = np.random.choice(['completed', 'pending', 'failed'], n_transactions).tolist()
+    credit_limits = np.random.uniform(5000, 50000, n_transactions).round(2).tolist()  # 轉為 Python 列表
+    installment_plans = np.random.choice(['none', '3_months', '6_months'], n_transactions).tolist()
+    fraud_flags = np.random.choice([0, 1], n_transactions, p=[0.95, 0.05]).tolist()  # 轉為 Python 列表
+
+    # 日期生成（包含異常日期）
     dates = []
-    amounts = []
-    today = datetime(2025, 3, 9)  # 假設當前日期
-    
-    # 生成 950 筆正常交易日期（過去一年內）
-    for _ in range(950):
-        days_back = np.random.randint(0, 365)
-        date = today - timedelta(days=days_back)
-        dates.append(date.strftime('%Y-%m-%d'))
-        amounts.append(np.random.lognormal(10, 0.5))
-    
-    # 添加 50 筆異常日期（未來日期或過遠的過去）
-    for _ in range(50):
-        if np.random.rand() > 0.5:
-            # 未來日期
-            future_days = np.random.randint(1, 100)
-            date = today + timedelta(days=future_days)
+    for _ in range(n_transactions):
+        if np.random.random() < 0.05:
+            delta = np.random.choice([timedelta(days=np.random.randint(365, 730)),
+                                     timedelta(days=-np.random.randint(365, 730))])
         else:
-            # 過遠的過去（超過10年）
-            past_days = np.random.randint(3650, 5000)
-            date = today - timedelta(days=past_days)
-        dates.append(date.strftime('%Y-%m-%d'))
-        amounts.append(np.random.lognormal(10, 0.5))
-    
-    # 插入數據（不再提供 id，讓資料庫自動生成）
-    data = list(zip(dates, amounts))  # 移除 id
-    insert_query = 'INSERT INTO transactions (trans_date, amount) VALUES (%s, %s)'
-    if db_type == 'sqlite':
-        conn.executemany(insert_query.replace('%s', '?'), data)
-        conn.commit()
-    elif db_type == 'postgres':
-        with conn.cursor() as cur:
-            cur.executemany(insert_query, data)
-        conn.commit()
-    
+            delta = timedelta(days=np.random.randint(-180, 180))
+        dates.append((base_date + delta).isoformat())
+
+    # 插入數據
+    data = list(zip(dates, amounts, customers, merchants, payment_methods, transaction_types,
+                    currencies, locations, statuses, credit_limits, installment_plans, fraud_flags))
+    try:
+        cursor.executemany('''
+            INSERT INTO transactions (trans_date, amount, customer_id, merchant_id, payment_method, 
+                                     transaction_type, currency, location, status, credit_limit, 
+                                     installment_plan, fraud_flag)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', data)
+        print(f"插入影響的行數: {cursor.rowcount}")
+    except psycopg2.Error as e:
+        print(f"插入失敗: {e}")
+
+    conn.commit()
     return conn
+
+if __name__ == "__main__":
+    with open('config.json', 'r') as config_file:
+        db_config = json.load(config_file)
+    conn = create_sample_db(db_config)
+    df = pd.read_sql_query("SELECT * FROM transactions", conn)
+    print(df.head())
+    conn.close()
