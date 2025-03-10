@@ -19,19 +19,18 @@ df['days_since'] = (df['trans_date'] - pd.to_datetime('2025-03-08')).dt.days
 # 使用多個特徵進行異常檢測
 X = df[['days_since', 'amount', 'credit_limit']].values
 
-# 異常檢測 (contamination=0.05)
-iso_forest = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
+# 異常檢測 
+iso_forest = IsolationForest(n_estimators=100, contamination=0.04, random_state=None)
 df['anomaly'] = iso_forest.fit_predict(X)
 
 # 統計與輸出
 n_anomalies = len(df[df['anomaly'] == -1])
-print(f"\ncontamination=0.05:")
 print(f"檢測到的異常數量: {n_anomalies}")
 print(f"異常比例: {n_anomalies / len(df) * 100:.2f}%")
 print_anomaly_samples(df)
 
 # 繪製一張散點圖
-plot_anomalies(df, title='異常檢測 (contamination=0.05)')
+plot_anomalies(df, title='異常檢測')
 
 conn.close()
 
