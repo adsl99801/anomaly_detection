@@ -21,10 +21,11 @@ Conda（建議使用 Anaconda 或 Miniconda）
 6.參考指令
 https://gist.github.com/LucaRottiers/6a6fb28ec9d98cffb125d722842a87ef
 
-podman machine start
-podman ps -a
-podman restart c4f9ffebeff2
-https://docs.conda.io/projects/conda/en/4.6.0/_downloads/52a95608c49671267e40c689e0bc00ca/conda-cheatsheet.pdf
+podman machine start  
+podman ps -a  
+podman restart c4f9ffebeff2  
 
-conda env list
-conda activate myenv
+https://docs.conda.io/projects/conda/en/4.6.0/_downloads/52a95608c49671267e40c689e0bc00ca/conda-cheatsheet.pdf  
+
+conda env list  
+conda activate myenv  
